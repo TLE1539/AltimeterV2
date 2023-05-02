@@ -16,7 +16,7 @@ double bmp_pressure;
 double bmp_altitude;
 
 uint8_t temp_norm, pres_norm, alt_norm;
-int8_t ay_norm, gy_norm;
+int8_t ax_norm, gx_norm;
 
 bool isArmed = false;
 int c_addr = 0;
@@ -31,9 +31,9 @@ char* convert_int16_to_str(int16_t i) { // converts int16 to string. Moreover, r
 }
 
 void setup() {
-  pinMode(2, INPUT);
-  pinMode(3, OUTPUT);
-  pinMode(4, OUTPUT);
+  pinMode(3, INPUT);
+  pinMode(7, OUTPUT);
+  pinMode(12, OUTPUT);
   
   Serial.begin(115200);
   Wire.begin();
@@ -50,7 +50,7 @@ void setup() {
   bmp.setOutputDataRate(BMP3_ODR_50_HZ);
 }
 void loop() {
-  isArmed = digitalRead(2);
+  isArmed = digitalRead(3);
   
   Wire.beginTransmission(MPU_ADDR);
   Wire.write(0x3B); // starting with register 0x3B (ACCEL_XOUT_H) [MPU-6000 and MPU-6050 Register Map and Descriptions Revision 4.2, p.40]
@@ -71,7 +71,7 @@ void loop() {
   bmp_pressure = bmp.pressure;
   bmp_altitude = bmp.readAltitude(SEALEVELPRESSURE_HPA);
   
-/*
+  /*
   // print out raw data
   Serial.print("aX = "); Serial.print(convert_int16_to_str(accelerometer_x));
   Serial.print(" | aY = "); Serial.print(convert_int16_to_str(accelerometer_y - 16000));
@@ -82,7 +82,7 @@ void loop() {
   Serial.print(" | gY = "); Serial.print(convert_int16_to_str(gyro_y));
   Serial.print(" | gZ = "); Serial.print(convert_int16_to_str(gyro_z));
   Serial.println();
-  
+  /*
   Serial.print("bmp_temp = "); Serial.print(bmp_temp);
   Serial.print(" | bmp_pressure = "); Serial.print(bmp_pressure);
   Serial.print(" | bmp_altitude = "); Serial.print(bmp_altitude);
@@ -90,15 +90,15 @@ void loop() {
   */
 
   // Normalize sensor readings to the size of a byte
-  ay_norm = (accelerometer_y - 16000) / 62.5;
-  gy_norm = (gyro_y * 256) / 32000;
-  temp_norm = (bmp_temp - 4.4)* 10;
-  pres_norm = (bmp_pressure - 96725) / 17.969;
-  alt_norm = (bmp_altitude / 5);
+  ax_norm = constrain(((accelerometer_x - 17500) / 62.5), -128, 127);
+  gx_norm = constrain((((gyro_x + 300)* 256) / 32000), -128, 127);
+  temp_norm = constrain(((bmp_temp - 4.4) * 10), 0, 255);
+  pres_norm = constrain(((bmp_pressure - 96725) / 17.969), 0, 255);
+  alt_norm = constrain((bmp_altitude / 5), 0, 255);
 
   /*
-  Serial.print("ay = "); Serial.print(ay_norm);
-  Serial.print(" | gy = "); Serial.print(gy_norm);
+  Serial.print("ax = "); Serial.print(ax_norm + 128);
+  Serial.print(" | gx = "); Serial.print(gx_norm + 128);
   Serial.print(" | temp = "); Serial.print(temp_norm);
   Serial.print(" | pressure = "); Serial.print(pres_norm);
   Serial.print(" | altitude = "); Serial.print(alt_norm);
@@ -106,29 +106,29 @@ void loop() {
   */
 
   // Write to EEPROM
-  if(isArmed && c_addr <= 1016){
-    digitalWrite(3, HIGH);
-    digitalWrite(4, LOW);
+  if(isArmed && c_addr <= 1015){
+    digitalWrite(7, HIGH);
+    digitalWrite(12, LOW);
     
-    EEPROM.update(c_addr, ay_norm);
-    EEPROM.update(c_addr + 1, gy_norm);
+    EEPROM.update(c_addr, ax_norm + 128);
+    EEPROM.update(c_addr + 1, gx_norm + 128);
     EEPROM.update(c_addr + 2, temp_norm);
     EEPROM.update(c_addr + 3, pres_norm);
     EEPROM.update(c_addr + 4, alt_norm);
-    
-    c_addr += 4;
-
-    Serial.print("ay = "); Serial.print(EEPROM.read(c_addr));
-    Serial.print(" | gy = "); Serial.print(EEPROM.read(c_addr + 1));
+    /*
+    Serial.print("ax = "); Serial.print(EEPROM.read(c_addr));
+    Serial.print(" | gx = "); Serial.print(EEPROM.read(c_addr + 1));
     Serial.print(" | temp = "); Serial.print(EEPROM.read(c_addr + 2));
     Serial.print(" | pressure = "); Serial.print(EEPROM.read(c_addr + 3));
     Serial.print(" | altitude = "); Serial.print(EEPROM.read(c_addr + 4));
     Serial.print(" | c_addr = "); Serial.print(c_addr);
     Serial.println();
+    */
+    c_addr += 5;
   }
   else{
-    digitalWrite(3, LOW);
-    digitalWrite(4, HIGH);
+    digitalWrite(7, LOW);
+    digitalWrite(12, HIGH);
   }
   
   // delay
